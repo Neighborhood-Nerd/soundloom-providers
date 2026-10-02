@@ -1,0 +1,34 @@
+{
+  "name": "SoundLoom Providers",
+  "description": "Audiobook and community content sources for SoundLoom (Zangetsu-style JS providers).",
+  "sources": [
+    {
+      "id": "librivox",
+      "name": "LibriVox",
+      "version": "1.0.1",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/librivox.js",
+      "nsfw": false
+    },
+    {
+      "id": "torbox",
+      "name": "TorBox",
+      "version": "2.1.10",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/torbox.js",
+      "logo": "icons/torbox.png",
+      "nsfw": false
+    },
+    {
+      "id": "audiobookbay",
+      "name": "AudioBook Bay",
+      "version": "1.0.2",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/audiobookbay.js",
+      "nsfw": false
+    }
+  ]
+}
