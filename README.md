@@ -34,12 +34,21 @@ compatibility. Optional: set `asin` on detail/search hits for catalogue matching
 See `providers/torbox.js` for an audiobook TorBox debrid example
 (`search` → magnet hits, `getAudioSources` → TorBox unlock).
 
-Serve the repo with the search proxy (needed when phones hit UniFi SSL blocks):
+`providers/internetarchive.js` searches [archive.org](https://archive.org)
+audio items (default: `format:Audiobook`, which surfaces `.m4b` titles).
+Single-file items return a direct `.m4b`/audio URL; multi-file items return one
+derived `{identifier}_vbr.m3u` playlist (SoundLoom expands it into chapter
+tracks).
+
+Optional local dev server (static files only — same as GitHub, with CORS):
 
 ```bash
 python3 serve.py
 # repo URL: http://<lan-ip>:8000/index.json
 ```
+
+Torrent providers call their public APIs directly from the app (`torrentscsv.js`,
+`solidtorrents.js`, etc.). There is no server-side search in this repo.
 
 ## Contract tests
 

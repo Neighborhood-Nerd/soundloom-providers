@@ -3,6 +3,16 @@
   "description": "Audiobook and community content sources for SoundLoom (Zangetsu-style JS providers).",
   "sources": [
     {
+      "id": "internetarchive",
+      "name": "Internet Archive",
+      "version": "1.1.0",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/internetarchive.js",
+      "logo": "https://archive.org/images/glogo.png",
+      "nsfw": false
+    },
+    {
       "id": "librivox",
       "name": "LibriVox",
       "version": "1.0.1",
@@ -12,13 +22,23 @@
       "nsfw": false
     },
     {
-      "id": "torbox",
-      "name": "TorBox",
-      "version": "2.1.10",
+      "id": "torrentscsv",
+      "name": "Torrents CSV",
+      "version": "1.0.3",
       "type": "audiobook",
       "lang": "en",
-      "file": "providers/torbox.js",
-      "logo": "icons/torbox.png",
+      "file": "providers/torrentscsv.js",
+      "logo": "https://torrents-csv.com/favicon.ico",
+      "nsfw": false
+    },
+    {
+      "id": "solidtorrents",
+      "name": "Solid Torrents",
+      "version": "1.0.3",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/solidtorrents.js",
+      "logo": "https://solidtorrents.to/favicon.ico",
       "nsfw": false
     },
     {
