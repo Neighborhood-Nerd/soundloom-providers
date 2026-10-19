@@ -50,6 +50,16 @@ python3 serve.py
 Torrent providers call their public APIs directly from the app (`torrentscsv.js`,
 `solidtorrents.js`, etc.). There is no server-side search in this repo.
 
+### Audiobookshelf (`audiobookshelf.js`)
+
+Self-hosted [Audiobookshelf](https://www.audiobookshelf.org/) server as a source:
+
+1. Install the source under **Settings → Sources**
+2. Open source settings and set **Server URL** (e.g. `https://abs.example.com`) and **API token** (ABS web app → Config → Users → your account)
+3. Optionally set a **Library ID** to search one library; leave empty to search all book libraries you can access
+
+Search returns books from your server; playback and downloads use authenticated file URLs (`?token=`). Listening progress is tracked in the app only (not synced to ABS).
+
 ## Contract tests
 
 ```bash

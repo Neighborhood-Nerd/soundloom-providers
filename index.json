@@ -49,6 +49,15 @@
       "lang": "en",
       "file": "providers/audiobookbay.js",
       "nsfw": false
+    },
+    {
+      "id": "audiobookshelf",
+      "name": "Audiobookshelf",
+      "version": "1.0.3",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/audiobookshelf.js",
+      "nsfw": false
     }
   ]
 }
