@@ -74,7 +74,8 @@ function _fetchText(url, attempt) {
       }
       throw new Error('HTTP ' + res.status + ' for ' + url);
     }
-    return res.text();
+    if (typeof res.text === 'function') return res.text();
+    return String(res.body || '');
   }).catch(function (err) {
     if (tryNum + 1 < max) {
       return _sleep(200 * (tryNum + 1)).then(function () {
@@ -88,11 +89,15 @@ function _fetchText(url, attempt) {
 function _searchUrl(query, page) {
   var base = _baseUrl();
   var p = page || 1;
-  var q = _trim(query);
+  // ABB search is case-sensitive; Title Case from the catalogue returns the
+  // homepage (recent posts) instead of search results.
+  var q = _trim(query).toLowerCase();
   if (p > 1) {
     return base + '/page/' + p + (q ? '/?s=' + encodeURIComponent(q) : '/');
   }
-  return q ? base + '/?s=' + encodeURIComponent(q) : base + '/';
+  if (!q) return base + '/';
+  // Match ABB advanced search (all categories); same results as browser UI.
+  return base + '/?s=' + encodeURIComponent(q) + '&cat=undefined%2Cundefined';
 }
 
 function _noResults(html) {
@@ -130,6 +135,40 @@ function _coverFromPost(block) {
   return m ? m[1] : '';
 }
 
+function _keywordsFromPost(block) {
+  var m = block.match(/Keywords:\s*([^<]+)/i);
+  if (!m) return '';
+  return _decodeHtml(String(m[1]).replace(/&nbsp;/g, ' '));
+}
+
+function _sizeLabelFromPost(block) {
+  var m = block.match(
+    /File Size:[\s\S]*?<span[^>]*>([\d.]+)<\/span>\s*(MBs?|GBs?|KBs?)/i
+  );
+  if (!m) return '';
+  var num = parseFloat(m[1]);
+  if (!num || num <= 0) return '';
+  var unit = String(m[2]).toLowerCase();
+  var sizePart = '';
+  if (unit.indexOf('gb') === 0) {
+    sizePart = (num >= 10 ? String(Math.round(num)) : num.toFixed(1)) + ' GB';
+  } else if (unit.indexOf('mb') === 0) {
+    sizePart = (num >= 100 ? String(Math.round(num)) : num.toFixed(1)) + ' MB';
+  } else {
+    sizePart = String(Math.round(num)) + ' KB';
+  }
+  var fmt = block.match(/Format:[\s\S]*?<span[^>]*>([^<]+)<\/span>/i);
+  if (fmt) {
+    var f = _trim(fmt[1]);
+    if (f && f !== '?') sizePart += ' · ' + f;
+  }
+  return sizePart;
+}
+
+function _isSearchResultsPage(html) {
+  return /class="archiveTitle"/i.test(html);
+}
+
 function _parseSearchPosts(html) {
   var parts = html.split('<div class="post">');
   var out = [];
@@ -140,10 +179,14 @@ function _parseSearchPosts(html) {
     var detailUrl = _absUrl(link.href);
     var meta = _titleAuthorFromPostTitle(link.title);
     if (!meta.title || !detailUrl) continue;
+    var keywords = _keywordsFromPost(block);
+    var sizeLabel = _sizeLabelFromPost(block);
     out.push({
       id: detailUrl,
       title: meta.title,
       author: meta.author,
+      keywords: keywords || undefined,
+      sizeLabel: sizeLabel || undefined,
       url: detailUrl,
       detailUrl: detailUrl,
       coverUrl: _coverFromPost(block),
@@ -184,18 +227,26 @@ function _normalizeForMatch(s) {
     .replace(/^\s+|\s+$/g, '');
 }
 
-function _scoreTitleMatch(query, title, author) {
+function _scoreTitleMatch(query, title, author, keywords) {
   var q = _normalizeForMatch(query);
   var t = _normalizeForMatch(title);
   var a = _normalizeForMatch(author || '');
   if (a) t = t + ' ' + a;
+  var k = _normalizeForMatch(keywords || '');
+  if (k) t = t + ' ' + k;
   if (!q || !t) return 0;
   if (t === q) return 100000;
   if (t.indexOf(q) === 0) return 90000 - Math.min(t.length - q.length, 5000);
   var idx = t.indexOf(q);
   if (idx >= 0) return 80000 - Math.min(idx, 5000);
 
-  var parts = q.split(' ').filter(function (w) { return w.length > 1; });
+  var stop = {
+    the: 1, of: 1, and: 1, a: 1, an: 1, in: 1, on: 1, at: 1,
+    to: 1, for: 1, is: 1, or: 1, by: 1
+  };
+  var parts = q.split(' ').filter(function (w) {
+    return w.length > 1 && !stop[w];
+  });
   if (!parts.length) return 0;
 
   var inOrder = 0;
@@ -215,8 +266,8 @@ function _scoreTitleMatch(query, title, author) {
 
 function _sortByRelevance(query, rows) {
   return rows.sort(function (a, b) {
-    var sa = _scoreTitleMatch(query, a.title, a.author);
-    var sb = _scoreTitleMatch(query, b.title, b.author);
+    var sa = _scoreTitleMatch(query, a.title, a.author, a.keywords);
+    var sb = _scoreTitleMatch(query, b.title, b.author, b.keywords);
     return sb - sa;
   });
 }
@@ -234,7 +285,7 @@ function getInfo() {
     lang: 'en',
     baseUrl: _baseUrl(),
     type: 'audiobook',
-    version: '1.0.2',
+    version: '1.0.6',
   };
 }
 
@@ -254,6 +305,7 @@ function search(query, page) {
   var url = _searchUrl(query, page || 1);
   return _fetchText(url).then(function (html) {
     if (_noResults(html)) return [];
+    if (!_isSearchResultsPage(html)) return [];
     return _sortByRelevance(query, _parseSearchPosts(html));
   });
 }
