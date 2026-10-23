@@ -1,6 +1,6 @@
 {
-  "name": "SoundLoom Providers",
-  "description": "Audiobook and community content sources for SoundLoom (Zangetsu-style JS providers).",
+  "name": "Cirrus Providers",
+  "description": "Community content sources for Cirrus",
   "sources": [
     {
       "id": "internetarchive",
