@@ -8,7 +8,7 @@ Hydra / Zangetsu-style provider repo for [SoundLoom](../soundloom).
 2. Paste this manifest URL (after publishing):
 
 ```
-https://raw.githubusercontent.com/YOUR_USER/soundloom-providers/main/index.json
+https://raw.githubusercontent.com/Neighborhood-Nerd/soundloom-providers/refs/heads/master/index.json
 ```
 
 3. Tap **Install** next to a source.
