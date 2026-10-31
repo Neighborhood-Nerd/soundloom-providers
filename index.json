@@ -58,6 +58,16 @@
       "lang": "en",
       "file": "providers/audiobookshelf.js",
       "nsfw": false
+    },
+    {
+      "id": "goldenaudiobooks",
+      "name": "Golden Audiobooks",
+      "version": "1.0.0",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/goldenaudiobooks.js",
+      "logo": "https://goldenaudiobooks.com/wp-content/uploads/2018/08/cropped-rsz_1golden-open-book-vector-3716385-1-192x192.jpg",
+      "nsfw": false
     }
   ]
 }
