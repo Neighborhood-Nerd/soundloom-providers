@@ -68,6 +68,16 @@
       "file": "providers/goldenaudiobooks.js",
       "logo": "https://goldenaudiobooks.com/wp-content/uploads/2018/08/cropped-rsz_1golden-open-book-vector-3716385-1-192x192.jpg",
       "nsfw": false
+    },
+    {
+      "id": "fulllengthaudiobooks",
+      "name": "Full Length Audiobooks",
+      "version": "1.0.0",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/fulllengthaudiobooks.js",
+      "logo": "https://fulllengthaudiobooks.com/wp-content/uploads/2021/03/cropped-httpsfulllengthaudiobooks.com_-192x192.png",
+      "nsfw": false
     }
   ]
 }
