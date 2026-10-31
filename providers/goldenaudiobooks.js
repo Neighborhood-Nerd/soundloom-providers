@@ -163,6 +163,75 @@ function _searchHitFromPost(post) {
   };
 }
 
+function _pushSearchTerm(list, term) {
+  var t = _trim(term);
+  if (!t || t.length < 2) return;
+  var lower = t.toLowerCase();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].toLowerCase() === lower) return;
+  }
+  list.push(t);
+}
+
+function _searchQueryPlan(query) {
+  var q = _trim(query);
+  var tryTerms = [];
+  if (!q) return { tryTerms: tryTerms, pageTerm: '' };
+  _pushSearchTerm(tryTerms, q);
+  var colon = q.indexOf(':');
+  if (colon > 0) {
+    _pushSearchTerm(tryTerms, q.slice(0, colon));
+  }
+  var dash = q.match(/^(.+?)\s+[–\-]\s+(.+)$/);
+  if (dash) {
+    _pushSearchTerm(tryTerms, dash[1]);
+  }
+  var pageTerm = q;
+  if (colon > 0) {
+    var main = _trim(q.slice(0, colon));
+    if (main.length >= 2) pageTerm = main;
+  }
+  return { tryTerms: tryTerms, pageTerm: pageTerm };
+}
+
+function _searchRequestUrl(term, page) {
+  return _baseUrl() + '/wp-json/wp/v2/posts?search=' + encodeURIComponent(term) +
+    '&per_page=' + SEARCH_PER_PAGE + '&page=' + (page || 1) +
+    '&_fields=id,link,title,yoast_head_json';
+}
+
+function _postsToSearchHits(rows) {
+  if (!Array.isArray(rows)) return [];
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var hit = _searchHitFromPost(rows[i]);
+    if (hit) out.push(hit);
+  }
+  return out;
+}
+
+function _fetchSearchHits(term, page) {
+  return _fetchJson(_searchRequestUrl(term, page)).then(function (rows) {
+    return _postsToSearchHits(rows);
+  }).catch(function () {
+    return [];
+  });
+}
+
+function _mergeSearchHits(acc, rows) {
+  var seen = {};
+  var i;
+  for (i = 0; i < acc.length; i++) {
+    seen[acc[i].id] = true;
+  }
+  for (i = 0; i < rows.length; i++) {
+    if (seen[rows[i].id]) continue;
+    seen[rows[i].id] = true;
+    acc.push(rows[i]);
+  }
+  return acc;
+}
+
 function _loadPostBySlug(slug) {
   var base = _baseUrl();
   var url = base + '/wp-json/wp/v2/posts?slug=' + encodeURIComponent(slug) +
@@ -232,7 +301,7 @@ function getInfo() {
     logo: _baseUrl() + '/wp-content/uploads/2018/08/' +
       'cropped-rsz_1golden-open-book-vector-3716385-1-192x192.jpg',
     type: 'audiobook',
-    version: '1.0.0',
+    version: '1.0.1',
   };
 }
 
@@ -248,23 +317,19 @@ function getSettings() {
 }
 
 function search(query, page) {
-  var q = _trim(query);
-  if (!q) return Promise.resolve([]);
+  var plan = _searchQueryPlan(query);
+  if (!plan.tryTerms.length) return Promise.resolve([]);
   var p = page || 1;
-  var url = _baseUrl() + '/wp-json/wp/v2/posts?search=' + encodeURIComponent(q) +
-    '&per_page=' + SEARCH_PER_PAGE + '&page=' + p +
-    '&_fields=id,link,title,yoast_head_json';
-  return _fetchJson(url).then(function (rows) {
-    if (!Array.isArray(rows)) return [];
-    var out = [];
-    for (var i = 0; i < rows.length; i++) {
-      var hit = _searchHitFromPost(rows[i]);
-      if (hit) out.push(hit);
-    }
-    return out;
-  }).catch(function () {
-    return [];
-  });
+  if (p > 1) {
+    return _fetchSearchHits(plan.pageTerm, p);
+  }
+  return plan.tryTerms.reduce(function (prev, term) {
+    return prev.then(function (acc) {
+      return _fetchSearchHits(term, 1).then(function (rows) {
+        return _mergeSearchHits(acc, rows);
+      });
+    });
+  }, Promise.resolve([]));
 }
 
 function getDetail(url) {

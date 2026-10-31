@@ -62,7 +62,7 @@
     {
       "id": "goldenaudiobooks",
       "name": "Golden Audiobooks",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "type": "audiobook",
       "lang": "en",
       "file": "providers/goldenaudiobooks.js",
@@ -72,7 +72,7 @@
     {
       "id": "fulllengthaudiobooks",
       "name": "Full Length Audiobooks",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "type": "audiobook",
       "lang": "en",
       "file": "providers/fulllengthaudiobooks.js",
