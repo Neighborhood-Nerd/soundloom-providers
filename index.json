@@ -82,7 +82,7 @@
     {
       "id": "audiozaic",
       "name": "Audiozaic",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "type": "audiobook",
       "lang": "en",
       "file": "providers/audiozaic.js",

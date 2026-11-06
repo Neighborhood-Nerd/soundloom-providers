@@ -161,6 +161,8 @@ function _stripTitleDecorations(t) {
 
 function _bookTitleFromSegment(s) {
   var out = _stripOuterQuotes(s);
+  out = out.replace(/[“”"'\u2018\u2019\u201c\u201d]/g, '');
+  out = out.replace(/\s*\([^)]*\)\s*/g, ' ');
   out = out.replace(/\s+Audiobook\s*$/i, '');
   return _trim(out);
 }
@@ -172,6 +174,13 @@ function _titleAuthorFromPostTitle(title) {
     return {
       author: _bookTitleFromSegment(m[1]),
       title: _bookTitleFromSegment(m[2]),
+    };
+  }
+  var byParts = t.split(/\s+By\s+/);
+  if (byParts.length >= 2) {
+    return {
+      title: _bookTitleFromSegment(byParts.slice(0, -1).join(' By ')),
+      author: _bookTitleFromSegment(byParts[byParts.length - 1]),
     };
   }
   m = t.match(/^(.+?)\s+by\s+(.+)$/i);
@@ -238,6 +247,9 @@ function _searchQueryPlan(query) {
   var tryTerms = [];
   if (!q) return { tryTerms: tryTerms, pageTerm: '' };
   _pushSearchTerm(tryTerms, q);
+  if (/\s/.test(q)) {
+    _pushSearchTerm(tryTerms, q.replace(/\s+/g, '-'));
+  }
   var colon = q.indexOf(':');
   if (colon > 0) {
     _pushSearchTerm(tryTerms, q.slice(0, colon));
@@ -252,6 +264,125 @@ function _searchQueryPlan(query) {
     if (main.length >= 2) pageTerm = main;
   }
   return { tryTerms: tryTerms, pageTerm: pageTerm };
+}
+
+function _queryTokens(query) {
+  return _trim(query).toLowerCase().split(/\s+/).filter(function (t) {
+    return t.length >= 2;
+  });
+}
+
+function _hitMatchesQuery(hit, tokens) {
+  if (!tokens.length) return true;
+  var hay = (hit.title + ' ' + hit.author).toLowerCase();
+  for (var i = 0; i < tokens.length; i++) {
+    if (hay.indexOf(tokens[i]) < 0) return false;
+  }
+  return true;
+}
+
+function _filterHitsByQuery(hits, query) {
+  var tokens = _queryTokens(query);
+  if (tokens.length < 2) return hits;
+  return hits.filter(function (h) { return _hitMatchesQuery(h, tokens); });
+}
+
+function _siteSearchUrl(term, page) {
+  var url = _baseUrl() + '/?s=' + encodeURIComponent(term);
+  if (page && page > 1) url += '&paged=' + page;
+  return url;
+}
+
+function _entryTitleLinkFromBlock(block) {
+  var lm = block.match(
+    /<h2[^>]*class="[^"]*entry-title[^"]*"[^>]*>\s*<a\s+([^>]+)>([\s\S]*?)<\/a>/i
+  );
+  if (!lm) return null;
+  var attrs = lm[1];
+  var hrefM = attrs.match(/\bhref="([^"]+)"/i);
+  if (!hrefM) return null;
+  var titleM = attrs.match(/\btitle="([^"]*)"/i);
+  return {
+    link: hrefM[1],
+    titleAttr: titleM ? titleM[1] : '',
+    innerHtml: lm[2],
+  };
+}
+
+function _parseSiteSearchHtml(html) {
+  var out = [];
+  var seen = {};
+  var baseHost = _baseUrl().replace(/^https?:\/\//i, '').toLowerCase();
+  var articleRe = /<article[^>]*class="[^"]*\bpost-(\d+)\b[^"]*"[^>]*>([\s\S]*?)<\/article>/gi;
+  var m;
+  while ((m = articleRe.exec(String(html || ''))) !== null) {
+    var postId = m[1];
+    var block = m[2];
+    var row = _entryTitleLinkFromBlock(block);
+    if (!row) continue;
+    var link = _trim(row.link);
+    if (!link || link.toLowerCase().indexOf(baseHost) < 0) continue;
+    var rawTitle = _trim(row.titleAttr || '');
+    if (!rawTitle) {
+      rawTitle = _decodeHtml(String(row.innerHtml || '').replace(/<[^>]+>/g, ''));
+    } else {
+      rawTitle = _decodeHtml(rawTitle);
+    }
+    var parts = _titleAuthorFromPostTitle(rawTitle);
+    if (!parts.title) continue;
+    var id = String(postId || link);
+    if (seen[id]) continue;
+    seen[id] = true;
+    out.push({
+      id: id,
+      title: parts.title,
+      author: parts.author,
+      url: link,
+      detailUrl: link,
+    });
+  }
+  return out;
+}
+
+function _fetchSiteSearchHits(term, page) {
+  return _fetchText(_siteSearchUrl(term, page)).then(function (html) {
+    return _parseSiteSearchHtml(html);
+  }).catch(function () {
+    return [];
+  });
+}
+
+function _enrichSearchHitsWithCovers(hits) {
+  if (!hits.length) return Promise.resolve(hits);
+  var ids = [];
+  var i;
+  for (i = 0; i < hits.length; i++) {
+    if (/^\d+$/.test(hits[i].id)) ids.push(hits[i].id);
+  }
+  if (!ids.length) return Promise.resolve(hits);
+  var url = _baseUrl() + '/wp-json/wp/v2/posts?include=' + ids.join(',') +
+    '&_fields=id,yoast_head_json&_embed=wp:featuredmedia';
+  return _fetchJson(url).then(function (posts) {
+    if (!Array.isArray(posts)) return hits;
+    var coverById = {};
+    for (i = 0; i < posts.length; i++) {
+      var c = _coverFromEmbedded(posts[i]) || _coverFromYoast(posts[i].yoast_head_json);
+      if (c) coverById[String(posts[i].id)] = c;
+    }
+    return hits.map(function (h) {
+      if (!coverById[h.id]) return h;
+      return {
+        id: h.id,
+        title: h.title,
+        author: h.author,
+        url: h.url,
+        detailUrl: h.detailUrl,
+        coverUrl: coverById[h.id],
+      };
+    });
+  }).catch(function () {
+    return hits;
+  });
 }
 
 function _searchRequestUrl(term, page) {
@@ -401,7 +532,7 @@ function getInfo() {
     baseUrl: _baseUrl(),
     logo: _baseUrl() + '/wp-content/uploads/2025/08/cropped-android-chrome-512x512-1.png',
     type: 'audiobook',
-    version: '1.0.0',
+    version: '1.0.1',
   };
 }
 
@@ -420,16 +551,25 @@ function search(query, page) {
   var plan = _searchQueryPlan(query);
   if (!plan.tryTerms.length) return Promise.resolve([]);
   var p = page || 1;
-  if (p > 1) {
-    return _fetchSearchHits(plan.pageTerm, p);
-  }
-  return plan.tryTerms.reduce(function (prev, term) {
-    return prev.then(function (acc) {
-      return _fetchSearchHits(term, 1).then(function (rows) {
-        return _mergeSearchHits(acc, rows);
+  return _fetchSiteSearchHits(plan.pageTerm, p).then(function (siteHits) {
+    if (siteHits.length) {
+      return _enrichSearchHitsWithCovers(siteHits);
+    }
+    if (p > 1) {
+      return _fetchSearchHits(plan.pageTerm, p).then(function (rows) {
+        return _filterHitsByQuery(rows, plan.pageTerm);
       });
+    }
+    return plan.tryTerms.reduce(function (prev, term) {
+      return prev.then(function (acc) {
+        return _fetchSearchHits(term, 1).then(function (rows) {
+          return _mergeSearchHits(acc, rows);
+        });
+      });
+    }, Promise.resolve([])).then(function (hits) {
+      return _filterHitsByQuery(hits, plan.pageTerm);
     });
-  }, Promise.resolve([]));
+  });
 }
 
 function getDetail(url) {
