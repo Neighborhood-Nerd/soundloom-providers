@@ -519,6 +519,50 @@ function _fileAudioPageUrl(postId) {
   return _baseUrl() + '/file-audio/?slug32=' + encodeURIComponent(String(postId));
 }
 
+function _headerValue(headers, name) {
+  if (!headers) return '';
+  var want = String(name || '').toLowerCase();
+  for (var k in headers) {
+    if (!Object.prototype.hasOwnProperty.call(headers, k)) continue;
+    if (String(k).toLowerCase() === want) return String(headers[k] || '');
+  }
+  return '';
+}
+
+function _probeAudioSize(url) {
+  return fetch(url, {
+    method: 'HEAD',
+    headers: _playbackHeaders(),
+    timeoutMs: 15000,
+  }).then(function (res) {
+    if (!res.ok && res.status !== 206) return 0;
+    var len = parseInt(_headerValue(res.headers, 'content-length'), 10);
+    if (isFinite(len) && len > 0) return len;
+    return 0;
+  }).catch(function () {
+    // Range probe: some hosts reject HEAD but still expose Content-Range.
+    var rangeHeaders = _playbackHeaders();
+    rangeHeaders.Range = 'bytes=0-0';
+    return fetch(url, {
+      method: 'GET',
+      headers: rangeHeaders,
+      timeoutMs: 15000,
+    }).then(function (res) {
+      if (!res.ok && res.status !== 206) return 0;
+      var cr = _headerValue(res.headers, 'content-range');
+      var m = String(cr || '').match(/\/(\d+)\s*$/);
+      if (m) {
+        var total = parseInt(m[1], 10);
+        if (isFinite(total) && total > 0) return total;
+      }
+      var len = parseInt(_headerValue(res.headers, 'content-length'), 10);
+      return (isFinite(len) && len > 0) ? len : 0;
+    }).catch(function () {
+      return 0;
+    });
+  });
+}
+
 function _sourcesFromUrls(urls) {
   return urls.map(function (u, idx) {
     var num = _trackNumberFromUrl(u);
@@ -536,6 +580,23 @@ function _sourcesFromUrls(urls) {
   });
 }
 
+function _enrichSourcesWithSizes(sources) {
+  if (!sources.length) return Promise.resolve(sources);
+  return Promise.all(sources.map(function (src) {
+    return _probeAudioSize(src.url).then(function (size) {
+      if (!(size > 0)) return src;
+      return {
+        url: src.url,
+        label: src.label,
+        container: src.container,
+        quality: src.quality,
+        sizeBytes: size,
+        headers: src.headers,
+      };
+    });
+  }));
+}
+
 function getInfo() {
   return {
     name: 'Audiozaic',
@@ -543,7 +604,7 @@ function getInfo() {
     baseUrl: _baseUrl(),
     logo: _baseUrl() + '/wp-content/uploads/2025/08/cropped-android-chrome-512x512-1.png',
     type: 'audiobook',
-    version: '1.0.2',
+    version: '1.0.3',
   };
 }
 
@@ -603,10 +664,12 @@ function getAudioSources(url) {
   return _loadPostByUrl(url).then(function (post) {
     var html = (post.content && post.content.rendered) || '';
     var urls = _audioUrlsFromHtml(html);
-    if (urls.length) return _sourcesFromUrls(urls);
+    if (urls.length) return _enrichSourcesWithSizes(_sourcesFromUrls(urls));
     var playerUrl = _fileAudioPageUrl(post.id);
     return _fetchText(playerUrl).then(function (pageHtml) {
-      return _sourcesFromUrls(_audioUrlsFromHtml(pageHtml));
+      return _enrichSourcesWithSizes(
+        _sourcesFromUrls(_audioUrlsFromHtml(pageHtml))
+      );
     });
   }).catch(function () {
     return [];
