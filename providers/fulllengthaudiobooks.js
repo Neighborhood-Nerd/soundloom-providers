@@ -179,6 +179,34 @@ function _searchHitFromPost(post) {
   };
 }
 
+function _coerceSearchQuery(query) {
+  if (query == null) return '';
+  if (typeof query === 'object') {
+    var t = _trim(query.title || query.name || query.query || '');
+    var s = _trim(query.subtitle || '');
+    var a = _trim(query.author || '');
+    if (t && s) return _trim(t + ': ' + s);
+    if (t && a) return _trim(a + ' ' + t);
+    return t || s || a || '';
+  }
+  return _trim(String(query));
+}
+
+function _normalizeSearchQuery(query) {
+  return _coerceSearchQuery(query)
+    .replace(/\uFF1A/g, ':')
+    .replace(/[\u2018\u2019\u201A\u201B']/g, '')
+    .replace(/[\u201C\u201D\u201E\u201F"]/g, '')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\s+/g, ' ');
+}
+
+function _pageNum(page) {
+  var p = parseInt(page, 10);
+  if (!isFinite(p) || p < 1) return 1;
+  return p;
+}
+
 function _pushSearchTerm(list, term) {
   var t = _trim(term);
   if (!t || t.length < 2) return;
@@ -190,29 +218,28 @@ function _pushSearchTerm(list, term) {
 }
 
 function _searchQueryPlan(query) {
-  var q = _trim(query);
+  var q = _normalizeSearchQuery(query);
   var tryTerms = [];
   if (!q) return { tryTerms: tryTerms, pageTerm: '' };
+  var beforeColon = _trim(q.replace(/:\s*.+$/, ''));
+  var beforeDash = _trim(q.replace(/\s+-\s+.+$/, ''));
+  if (beforeColon.length >= 2 && beforeColon.toLowerCase() !== q.toLowerCase()) {
+    _pushSearchTerm(tryTerms, beforeColon);
+  }
+  if (beforeDash.length >= 2 && beforeDash.toLowerCase() !== q.toLowerCase()) {
+    _pushSearchTerm(tryTerms, beforeDash);
+  }
   _pushSearchTerm(tryTerms, q);
-  var colon = q.indexOf(':');
-  if (colon > 0) {
-    _pushSearchTerm(tryTerms, q.slice(0, colon));
-  }
-  var dash = q.match(/^(.+?)\s+[–\-]\s+(.+)$/);
-  if (dash) {
-    _pushSearchTerm(tryTerms, dash[1]);
-  }
-  var pageTerm = q;
-  if (colon > 0) {
-    var main = _trim(q.slice(0, colon));
-    if (main.length >= 2) pageTerm = main;
+  var pageTerm = beforeColon.length >= 2 ? beforeColon : q;
+  if (pageTerm.toLowerCase() === q.toLowerCase() && beforeDash.length >= 2) {
+    pageTerm = beforeDash;
   }
   return { tryTerms: tryTerms, pageTerm: pageTerm };
 }
 
 function _searchRequestUrl(term, page) {
   return _baseUrl() + '/wp-json/wp/v2/posts?search=' + encodeURIComponent(term) +
-    '&per_page=' + SEARCH_PER_PAGE + '&page=' + (page || 1) +
+    '&per_page=' + SEARCH_PER_PAGE + '&page=' + _pageNum(page) +
     '&_embed=wp:featuredmedia';
 }
 
@@ -319,7 +346,7 @@ function getInfo() {
     logo: _baseUrl() + '/wp-content/uploads/2021/03/' +
       'cropped-httpsfulllengthaudiobooks.com_-192x192.png',
     type: 'audiobook',
-    version: '1.0.1',
+    version: '1.0.2',
   };
 }
 
@@ -334,20 +361,23 @@ function getSettings() {
   ];
 }
 
+function _searchSequential(terms, acc, idx) {
+  if (idx >= terms.length) return Promise.resolve(acc);
+  return _fetchSearchHits(terms[idx], 1).then(function (rows) {
+    var merged = _mergeSearchHits(acc, rows);
+    if (merged.length > 0) return merged;
+    return _searchSequential(terms, merged, idx + 1);
+  });
+}
+
 function search(query, page) {
   var plan = _searchQueryPlan(query);
   if (!plan.tryTerms.length) return Promise.resolve([]);
-  var p = page || 1;
+  var p = _pageNum(page);
   if (p > 1) {
     return _fetchSearchHits(plan.pageTerm, p);
   }
-  return plan.tryTerms.reduce(function (prev, term) {
-    return prev.then(function (acc) {
-      return _fetchSearchHits(term, 1).then(function (rows) {
-        return _mergeSearchHits(acc, rows);
-      });
-    });
-  }, Promise.resolve([]));
+  return _searchSequential(plan.tryTerms, [], 0);
 }
 
 function getDetail(url) {
