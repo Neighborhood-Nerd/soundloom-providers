@@ -44,6 +44,13 @@ function _fetchHeaders() {
   };
 }
 
+function _playbackHeaders() {
+  return {
+    'User-Agent': UA,
+    Referer: _baseUrl() + '/',
+  };
+}
+
 function _sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
@@ -462,7 +469,10 @@ function _normalizeAudioUrl(url) {
 }
 
 function _isAudioFileUrl(url) {
-  return /\.(?:mp3|m4b)$/i.test(_trim(url));
+  var u = _trim(url);
+  if (!/\.(?:mp3|m4b)$/i.test(u)) return false;
+  if (/^https?:\/\//i.test(u) === false) return false;
+  return true;
 }
 
 function _trackNumberFromUrl(audioUrl) {
@@ -521,6 +531,7 @@ function _sourcesFromUrls(urls) {
       label: label,
       container: lower.indexOf('.m4b') >= 0 ? 'm4b' : 'mp3',
       quality: '',
+      headers: _playbackHeaders(),
     };
   });
 }
@@ -532,7 +543,7 @@ function getInfo() {
     baseUrl: _baseUrl(),
     logo: _baseUrl() + '/wp-content/uploads/2025/08/cropped-android-chrome-512x512-1.png',
     type: 'audiobook',
-    version: '1.0.1',
+    version: '1.0.2',
   };
 }
 
