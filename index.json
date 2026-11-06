@@ -78,6 +78,16 @@
       "file": "providers/fulllengthaudiobooks.js",
       "logo": "https://fulllengthaudiobooks.com/wp-content/uploads/2021/03/cropped-httpsfulllengthaudiobooks.com_-192x192.png",
       "nsfw": false
+    },
+    {
+      "id": "audiozaic",
+      "name": "Audiozaic",
+      "version": "1.0.0",
+      "type": "audiobook",
+      "lang": "en",
+      "file": "providers/audiozaic.js",
+      "logo": "https://audiozaic.com/wp-content/uploads/2025/08/cropped-android-chrome-512x512-1.png",
+      "nsfw": false
     }
   ]
 }
